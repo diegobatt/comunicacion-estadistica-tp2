@@ -8,16 +8,13 @@
 #
 
 library(shiny)
-library(purrr)
+library(tidyverse)
 
 tcl <- function(n, N, distribution) {
-    print(n)
-    print(N)
     means <- numeric(length=N)
     for(i in seq(N)) {
         means[i] = mean(distribution(n=n))
     }
-    print(means)
     return(means)
 }
 
@@ -33,7 +30,7 @@ ui <- fluidPage(
             selectInput(
                 "distribution_name",
                 "Distribucion",
-                c("Poisson", "Binomial", "Exponential", "Chi2")
+                c("Poisson", "Binomial", "Exponencial", "Chi2", "Gaussiana")
             ),
             sliderInput(
                 "n",
@@ -49,22 +46,13 @@ ui <- fluidPage(
                 max = 10000,
                 value = 10
             ),
-            # numericInput(
-            #     "loc",
-            #     "Parametro de centralidad",
-            #     0
-            # ),
-            # numericInput(
-            #     "scale",
-            #     "Parametro de escala",
-            #     1
-            # ),
             uiOutput("moreControls")
         ),
 
         # Show a plot of the generated distribution
         mainPanel(
-           plotOutput("distPlot")
+           plotOutput("distPlot"),
+           plotOutput("qqPlot")
         )
     )
 )
@@ -78,7 +66,7 @@ server <- function(input, output) {
             tagList(
                 sliderInput("rate", "Taza", 0.001, 1000, 1)
             )
-        } else if (name == "Bernoulli") {
+        } else if (name == "Binomial") {
             tagList(
                 sliderInput("p", "p", 0, 1, 0.5),
                 sliderInput("size", "Tiradas", 1, 100, 1)
@@ -91,27 +79,46 @@ server <- function(input, output) {
             tagList(
                 sliderInput("df", "Grados de libertad", 1, 1000, 10)
             )
+        } else if (name == "Gaussiana") {
+          tagList(
+            sliderInput("mu", "Media", -30, 30, 0),
+            sliderInput("sigma", "Desvio", 0.1, 50, 1)
+          )
         }
     })
     
+    output_tcl <- reactive({
+      name = input$distribution_name
+      if (name == "Exponencial") {
+        rate = if (is.null(input$rate)) 1 else input$rate
+        f = partial(rexp, rate=rate)
+      } else if (name == "Binomial") {
+        p = if (is.null(input$p)) 0.5 else input$p
+        size = if (is.null(input$size)) 1 else input$size
+        f = partial(rbinom, size=size, p=p)
+      } else if (name == "Poisson") {
+        lambda = if (is.null(input$lambda)) 1 else input$lambda
+        f = partial(rpois, lambda=lambda)
+      } else if (name == "Chi2") {
+        df = if (is.null(input$df)) 10 else input$df
+        f = partial(rchisq, df=df)
+      } else if (name == "Gaussiana") {
+        mu = if (is.null(input$mu)) 0 else input$mu
+        sigma = if (is.null(input$sigma)) 0 else input$sigma
+        f = partial(rnorm, mean=mu, sd=sigma)
+      }
+      data.frame(tcl=tcl(input$n, input$N, f))
+    })
+    
     output$distPlot <- renderPlot({
-        name = input$distribution_name
-        if (name == "Exponencial") {
-            rate = if (is.null(input$rate)) 1 else input$rate
-            f = partial(rexp, rate=rate)
-        } else if (name == "Bernoulli") {
-            p = if (is.null(input$p)) 0.5 else input$p
-            size = if (is.null(input$size)) 1 else input$size
-            f = partial(rbinom, size=size, p=p)
-        } else if (name == "Poisson") {
-            lambda = if (is.null(input$lambda)) 1 else input$lambda
-            f = partial(rpois, lambda=lambda)
-        } else if (name == "Chi2") {
-            df = if (is.null(input$df)) 10 else input$df
-            f = partial(rchisq, rate=df)
-        }
-        means = tcl(input$n, input$N, f)
-        hist(means, col = 'darkgray', border = 'white')
+      output_tcl() %>% ggplot(aes(x=tcl)) +
+          geom_histogram(aes(y=..density..), colour="black", fill="white") +
+          geom_density(alpha=.2, fill="#FF6666") 
+    })
+    
+    output$qqPlot <- renderPlot({
+      output_tcl() %>% ggplot(aes(sample=tcl)) +
+        geom_qq() + geom_qq_line()
     })
 }
 

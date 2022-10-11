@@ -1,0 +1,11 @@
+name: tcl-visualization
+title:
+username:
+account: diegobatt
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 7270141
+bundleId: 6389726
+url: https://diegobatt.shinyapps.io/tcl-visualization/
+when: 1665452626.82583
+lastSyncTime: 1665452626.82584
